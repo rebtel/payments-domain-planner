@@ -1022,9 +1022,12 @@ function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      if (saved.lanes) STATE.lanes = saved.lanes;
-      if (saved.boxes) STATE.boxes = saved.boxes;
-      if (typeof saved.nextColorIndex === 'number') STATE.nextColorIndex = saved.nextColorIndex;
+      // Only use saved state if it has actual boxes; otherwise keep defaults
+      if (saved.boxes && saved.boxes.length > 0) {
+        if (saved.lanes) STATE.lanes = saved.lanes;
+        STATE.boxes = saved.boxes;
+        if (typeof saved.nextColorIndex === 'number') STATE.nextColorIndex = saved.nextColorIndex;
+      }
     }
   } catch (e) {
     console.warn('Failed to load state', e);
