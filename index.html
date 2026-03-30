@@ -897,14 +897,26 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 /* ============================================
    STATE
    ============================================ */
-let STATE = {
+const DEFAULT_STATE = {
   lanes: [
-    { id: 'lane-0', name: 'Stream 1' },
-    { id: 'lane-1', name: 'Stream 2' }
+    { id: 'lane-0', name: 'Big stuff' },
+    { id: 'lane-1', name: 'Continuous improvement' }
   ],
-  boxes: [],
-  nextColorIndex: 0
+  boxes: [
+    { id: 'b1', laneIndex: 0, startWeek: 0, durationWeeks: 3, name: 'New Task', colorIndex: 0, tags: ['design','ios','android','web','be'] },
+    { id: 'b2', laneIndex: 0, startWeek: 3, durationWeeks: 5, name: 'No expiry date on Free Credits', colorIndex: 1, tags: ['design','ios','android','web','be'] },
+    { id: 'b3', laneIndex: 0, startWeek: 8, durationWeeks: 5, name: 'The Wallet', colorIndex: 4, tags: ['design','ios','android'], url: 'https://wallet-prototype.reblab.net/' },
+    { id: 'b4', laneIndex: 0, startWeek: 13, durationWeeks: 5, name: 'Cash-In', colorIndex: 2, tags: ['design','ios','android'] },
+    { id: 'b5', laneIndex: 0, startWeek: 18, durationWeeks: 6, name: 'New PSP integration', colorIndex: 5, tags: ['design','ios','android','web','be'] },
+    { id: 'b6', laneIndex: 0, startWeek: 26, durationWeeks: 6, name: 'One Checkout to rule them all', colorIndex: 8, tags: ['design','ios','android','web','be'] },
+    { id: 'b7', laneIndex: 0, startWeek: 32, durationWeeks: 5, name: 'Local Payments Smartness', colorIndex: 6, tags: ['design','ios','android','web','be'] },
+    { id: 'b8', laneIndex: 0, startWeek: 37, durationWeeks: 6, name: 'Routing smartness', colorIndex: 9, tags: ['design','ios','android','web','be'] },
+    { id: 'b9', laneIndex: 1, startWeek: 3, durationWeeks: 5, name: 'Smarter 3DS challenges', colorIndex: 3, tags: ['design','ios','android','web','be'] },
+  ],
+  nextColorIndex: 7
 };
+
+let STATE = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
 /* ============================================
    UNDO HISTORY
