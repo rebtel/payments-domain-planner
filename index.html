@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payments Domain — Timeline Planner</title>
+<style>
+/* ============================================
+   DESIGN TOKENS
+   ============================================ */
+:root {
+  --week-width: 36px;
+  --lane-height: 116px;
+  --label-width: 150px;
+  --box-height: 84px;
+  --box-top-offset: 16px;
+  --timeline-width: calc(52 * var(--week-width));
+
+  --memphis-coral:    #FF6F61;
+  --memphis-teal:     #2EC4B6;
+  --memphis-mustard:  #F4D35E;
+  --memphis-lavender: #B8A9E8;
+  --memphis-mint:     #88D9A8;
+  --memphis-salmon:   #FF9A8B;
+  --memphis-sky:      #6EC6FF;
+  --memphis-peach:    #FFDAB9;
+  --memphis-magenta:  #E84393;
+  --memphis-lime:     #C7F464;
+
+  --bg-primary:    #FAFAFA;
+  --bg-header:     #FFFFFF;
+  --border-dark:   #2D2D2D;
+  --text-primary:  #2D2D2D;
+  --text-secondary:#888888;
+  --grid-line:     #E4E4E4;
+}
+
+/* ============================================
+   RESET & BASE
+   ============================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================
+   HEADER
+   ============================================ */
+.header {
+  background: var(--bg-header);
+  padding: 20px 28px 14px;
+  border-bottom: 3px solid var(--border-dark);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.header h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.header .subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  display: block;
+}
+
+/* Memphis accent bar */
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--memphis-coral) 0px, var(--memphis-coral) 28px,
+    var(--memphis-teal) 28px, var(--memphis-teal) 56px,
+    var(--memphis-mustard) 56px, var(--memphis-mustard) 84px,
+    var(--memphis-lavender) 84px, var(--memphis-lavender) 112px,
+    var(--memphis-mint) 112px, var(--memphis-mint) 140px,
+    var(--memphis-sky) 140px, var(--memphis-sky) 168px
+  );
+}
+
+/* ============================================
+   TOOLBAR
+   ============================================ */
+.toolbar {
+  background: var(--bg-header);
+  padding: 12px 28px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid var(--grid-line);
+  flex-shrink: 0;
+}
+
+.toolbar button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border: 2.5px solid var(--border-dark);
+  border-radius: 6px;
+  cursor: pointer;
+  background: #fff;
+  box-shadow: 3px 3px 0px var(--border-dark);
+  transition: box-shadow 0.1s, transform 0.1s;
+}
+
+.toolbar button:hover {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0px var(--border-dark);
+}
+
+.toolbar button:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px var(--border-dark);
+}
+
+.toolbar .btn-add-1 { background: color-mix(in srgb, var(--memphis-teal) 20%, #fff); }
+.toolbar .btn-add-2 { background: color-mix(in srgb, var(--memphis-lavender) 20%, #fff); }
+.toolbar .btn-clear { background: color-mix(in srgb, var(--memphis-coral) 15%, #fff); }
+.toolbar .btn-undo { background: #fff; }
+.toolbar .btn-undo:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none;
+  box-shadow: 3px 3px 0px var(--border-dark);
+}
+
+.toolbar .right-group { margin-left: auto; display: flex; gap: 10px; }
+
+.toolbar .save-indicator {
+  font-size: 11px;
+  color: var(--text-secondary);
+  align-self: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.toolbar .save-indicator.show { opacity: 1; }
+
+/* ============================================
+   TIMELINE LAYOUT
+   ============================================ */
+.timeline-viewport {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Custom scrollbar */
+.timeline-viewport::-webkit-scrollbar { height: 8px; }
+.timeline-viewport::-webkit-scrollbar-track { background: #f0f0f0; }
+.timeline-viewport::-webkit-scrollbar-thumb { background: #bbb; border-radius: 4px; }
+.timeline-viewport::-webkit-scrollbar-thumb:hover { background: #999; }
+
+.timeline-inner {
+  display: flex;
+  flex-direction: column;
+  min-width: calc(var(--label-width) + var(--timeline-width) + 20px);
+}
+
+/* ============================================
+   MONTH HEADER ROW
+   ============================================ */
+.month-header-row {
+  display: flex;
+  height: 32px;
+  margin-left: var(--label-width);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-header);
+}
+
+.month-cell {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-right: 1px solid var(--grid-line);
+  border-bottom: 1px solid var(--grid-line);
+  color: var(--text-primary);
+}
+
+.month-cell:nth-child(odd) { background: #F7F7F7; }
+.month-cell:nth-child(even) { background: #FFFFFF; }
+
+/* ============================================
+   WEEK TICK ROW
+   ============================================ */
+.week-tick-row {
+  display: flex;
+  height: 20px;
+  margin-left: var(--label-width);
+  position: sticky;
+  top: 32px;
+  z-index: 10;
+  background: var(--bg-header);
+  border-bottom: 2px solid var(--border-dark);
+}
+
+.week-tick {
+  width: var(--week-width);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--grid-line);
+  flex-shrink: 0;
+}
+
+.week-tick.has-label {
+  font-size: 8.5px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ============================================
+   SWIMLANE
+   ============================================ */
+.swimlane {
+  display: flex;
+  min-height: var(--lane-height);
+  border-bottom: 1px solid var(--grid-line);
+  position: relative;
+}
+
+.swimlane.drop-target .lane-track {
+  background-color: rgba(46, 196, 182, 0.06);
+}
+
+.lane-label {
+  width: var(--label-width);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 14px 0 16px;
+  background: var(--bg-header);
+  border-right: 2px solid var(--border-dark);
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.lane-label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.swimlane[data-lane="0"] .lane-label::before { background: var(--memphis-teal); }
+.swimlane[data-lane="1"] .lane-label::before { background: var(--memphis-lavender); }
+
+.lane-name {
+  font-size: 14px;
+  font-weight: 700;
+  outline: none;
+  border-bottom: 2px dashed transparent;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: border-color 0.15s;
+  cursor: text;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lane-name:hover { border-bottom-color: var(--grid-line); }
+.lane-name:focus { border-bottom-color: var(--memphis-teal); background: #f0faf8; }
+
+.lane-track {
+  position: relative;
+  flex: 1;
+  min-height: var(--lane-height);
+  background:
+    repeating-linear-gradient(
+      to right,
+      transparent 0px,
+      transparent calc(var(--week-width) - 1px),
+      var(--grid-line) calc(var(--week-width) - 1px),
+      var(--grid-line) var(--week-width)
+    );
+  transition: background-color 0.15s;
+}
+
+/* ============================================
+   EMPTY STATE
+   ============================================ */
+.empty-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+/* ============================================
+   TODAY LINE
+   ============================================ */
+.today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--memphis-coral);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.today-line::before {
+  content: 'Today';
+  position: absolute;
+  top: -18px;
+  left: -16px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--memphis-coral);
+  white-space: nowrap;
+}
+
+/* ============================================
+   TASK BOX
+   ============================================ */
+.task-box {
+  position: absolute;
+  height: var(--box-height);
+  top: var(--box-top-offset);
+  border: 2.5px solid var(--border-dark);
+  border-radius: 6px;
+  box-shadow: 3px 3px 0px var(--border-dark);
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 24px 4px 10px;
+  font-weight: 600;
+  font-size: 12px;
+  user-select: none;
+  transition: box-shadow 0.08s, transform 0.08s;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.task-box.box-enter {
+  animation: boxEnter 0.18s ease-out;
+}
+
+@keyframes boxEnter {
+  from { transform: scale(0.85); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.task-box:hover {
+  z-index: 3;
+  box-shadow: 4px 4px 0px var(--border-dark);
+}
+
+.task-box.dragging {
+  box-shadow: 1px 1px 0px var(--border-dark);
+  transform: translate(1px, 1px);
+  cursor: grabbing;
+  opacity: 0.92;
+  z-index: 10;
+}
+
+.box-name {
+  outline: none;
+  cursor: text;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 0;
+  border-radius: 2px;
+}
+
+.box-name:focus {
+  background: rgba(255,255,255,0.5);
+  cursor: text;
+}
+
+/* Tag pills */
+.box-tags {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.box-tag {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: opacity 0.1s;
+  text-transform: uppercase;
+}
+
+.box-tag.off {
+  opacity: 0.25;
+}
+
+.box-tag.on {
+  opacity: 1;
+  border-color: rgba(0,0,0,0.15);
+}
+
+.box-tag:hover {
+  opacity: 0.8;
+}
+
+.box-tag[data-tag="design"]  { background: #F8BBD0; color: #880E4F; }
+.box-tag[data-tag="ios"]     { background: #BBDEFB; color: #0D47A1; }
+.box-tag[data-tag="android"] { background: #C8E6C9; color: #1B5E20; }
+.box-tag[data-tag="web"]     { background: #FFE0B2; color: #E65100; }
+.box-tag[data-tag="backend"] { background: #CFD8DC; color: #37474F; }
+
+/* Resize handles */
+.resize-handle {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 3;
+}
+
+.resize-handle.left { left: -2px; }
+.resize-handle.right { right: -2px; }
+
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 2px;
+  background: rgba(0,0,0,0.15);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.resize-handle.left::after { left: 3px; }
+.resize-handle.right::after { right: 3px; }
+.task-box:hover .resize-handle::after { opacity: 1; }
+
+/* Estimate badge */
+.box-estimate {
+  position: absolute;
+  top: -6px;
+  right: 14px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  border: 2px solid var(--border-dark);
+  background: #fff;
+  color: var(--border-dark);
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  cursor: pointer;
+  z-index: 4;
+  line-height: 1;
+  box-shadow: 1px 1px 0px var(--border-dark);
+  white-space: nowrap;
+}
+
+/* Delete button */
+.box-delete {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-dark);
+  background: var(--memphis-coral);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 5;
+  line-height: 1;
+  padding: 0;
+}
+
+.task-box:hover .box-delete { opacity: 1; }
+.box-delete:hover { background: #e54535; }
+
+/* Link button */
+.box-link {
+  position: absolute;
+  top: -8px;
+  right: 30px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-dark);
+  background: var(--memphis-sky);
+  color: var(--border-dark);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 5;
+  line-height: 1;
+  padding: 0;
+  text-decoration: none;
+}
+
+.task-box:hover .box-link { opacity: 1; }
+.task-box.has-url .box-link { opacity: 0.7; }
+.task-box.has-url:hover .box-link { opacity: 1; }
+.box-link:hover { background: #4db8ff; }
+
+/* ============================================
+   TOOLTIP
+   ============================================ */
+.box-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--border-dark);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 20;
+}
+
+.task-box:hover .box-tooltip { opacity: 1; }
+
+/* ============================================
+   TOAST NOTIFICATION
+   ============================================ */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--border-dark);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  z-index: 100;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ============================================
+   CONFIRM DIALOG
+   ============================================ */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.confirm-box {
+  background: #fff;
+  border: 3px solid var(--border-dark);
+  border-radius: 10px;
+  box-shadow: 6px 6px 0px var(--border-dark);
+  padding: 24px 32px;
+  text-align: center;
+  max-width: 360px;
+}
+
+.confirm-box p {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.confirm-box .btn-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-box button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 20px;
+  border: 2.5px solid var(--border-dark);
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px var(--border-dark);
+}
+
+.confirm-box .btn-cancel { background: #fff; }
+.confirm-box .btn-confirm { background: var(--memphis-coral); color: #fff; }
+
+/* ============================================
+   MISSION SECTION
+   ============================================ */
+.mission-section {
+  margin-left: var(--label-width);
+  padding: 28px 32px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  border-top: 3px solid var(--border-dark);
+  position: relative;
+  max-width: 720px;
+}
+
+.mission-section::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--memphis-teal) 0px, var(--memphis-teal) 28px,
+    var(--memphis-coral) 28px, var(--memphis-coral) 56px,
+    var(--memphis-mustard) 56px, var(--memphis-mustard) 84px,
+    var(--memphis-lavender) 84px, var(--memphis-lavender) 112px
+  );
+}
+
+.mission-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.mission-block h2 {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.mission-block p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #444;
+}
+
+.metrics-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.metrics-block h2 {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.metrics-block .metric-pillars {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.metric-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border: 2px solid var(--border-dark);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 2px 2px 0px var(--border-dark);
+}
+
+.metric-pill:nth-child(1) { background: color-mix(in srgb, var(--memphis-teal) 20%, #fff); }
+.metric-pill:nth-child(2) { background: color-mix(in srgb, var(--memphis-mustard) 25%, #fff); }
+.metric-pill:nth-child(3) { background: color-mix(in srgb, var(--memphis-coral) 15%, #fff); }
+.metric-pill:nth-child(4) { background: color-mix(in srgb, var(--memphis-lavender) 20%, #fff); }
+
+.metrics-list {
+  list-style: none;
+  counter-reset: metric;
+}
+
+.metrics-list li {
+  counter-increment: metric;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #444;
+  padding: 4px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.metrics-list li::before {
+  content: counter(metric);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-dark);
+  font-size: 11px;
+  font-weight: 800;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.metrics-list li:nth-child(1)::before { background: color-mix(in srgb, var(--memphis-teal) 25%, #fff); }
+.metrics-list li:nth-child(2)::before { background: color-mix(in srgb, var(--memphis-mustard) 30%, #fff); }
+.metrics-list li:nth-child(3)::before { background: color-mix(in srgb, var(--memphis-coral) 20%, #fff); }
+
+/* ============================================
+   KEYBOARD HINT
+   ============================================ */
+.keyboard-hint {
+  position: fixed;
+  bottom: 12px;
+  right: 16px;
+  font-size: 11px;
+  color: #bbb;
+  z-index: 1;
+}
+
+.keyboard-hint kbd {
+  background: #eee;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>Payments Domain — Timeline Planner</h1>
+  <span class="subtitle" id="subtitle">April 2026 — March 2027</span>
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="btn-add-1" id="btn-add-1">+ Add to <span id="toolbar-lane-0">Stream 1</span></button>
+  <button class="btn-add-2" id="btn-add-2">+ Add to <span id="toolbar-lane-1">Stream 2</span></button>
+<div class="right-group">
+    <span class="save-indicator" id="save-indicator">Saved</span>
+    <button class="btn-clear" id="btn-clear">Clear All</button>
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="timeline-viewport" id="viewport">
+  <div class="timeline-inner" id="timeline-inner">
+    <div class="month-header-row" id="month-header-row"></div>
+    <div class="week-tick-row" id="week-tick-row"></div>
+    <div class="swimlane" data-lane="0">
+      <div class="lane-label">
+        <span class="lane-name" contenteditable="true" data-lane="0" id="lane-name-0">Stream 1</span>
+      </div>
+      <div class="lane-track" id="lane-track-0"></div>
+    </div>
+    <div class="swimlane" data-lane="1">
+      <div class="lane-label">
+        <span class="lane-name" contenteditable="true" data-lane="1" id="lane-name-1">Stream 2</span>
+      </div>
+      <div class="lane-track" id="lane-track-1"></div>
+    </div>
+    <!-- MISSION & METRICS -->
+    <div class="mission-section">
+      <div class="mission-block">
+        <h2>Mission</h2>
+        <p>Enable frictionless payments in the users' preferred payment methods, while supporting the business in developing new ways to make money.</p>
+      </div>
+      <div class="metrics-block">
+        <h2>Measuring Success</h2>
+        <div class="metric-pillars">
+          <span class="metric-pill">Effortless</span>
+          <span class="metric-pill">Robust</span>
+          <span class="metric-pill">Cost Effective</span>
+        </div>
+        <ol class="metrics-list">
+          <li><span>Checkout conversion</span></li>
+          <li><span>Transaction auth rates</span></li>
+          <li><span>Payment costs (incl. chargebacks)</span></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- KEYBOARD HINT -->
+<div class="keyboard-hint"><kbd>Ctrl</kbd>+<kbd>Z</kbd> undo</div>
+
+<script>
+/* ============================================
+   CONSTANTS
+   ============================================ */
+const WEEK_WIDTH = 36;
+const TOTAL_WEEKS = 52;
+const MIN_DURATION = 2;
+const START_DATE = new Date(2026, 3, 1); // April 1, 2026
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const STORAGE_KEY = 'rebtel-timeline-planner-v1';
+const DRAG_THRESHOLD = 3;
+const LANE_SWITCH_THRESHOLD = 40; // vertical px to trigger lane switch
+const MAX_UNDO = 20;
+
+const PALETTE = [
+  '#2EC4B6', // teal
+  '#FF6F61', // coral
+  '#F4D35E', // mustard
+  '#B8A9E8', // lavender
+  '#88D9A8', // mint
+  '#FF9A8B', // salmon
+  '#6EC6FF', // sky
+  '#FFDAB9', // peach
+  '#E84393', // magenta
+  '#C7F464', // lime
+];
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/* ============================================
+   STATE
+   ============================================ */
+let STATE = {
+  lanes: [
+    { id: 'lane-0', name: 'Stream 1' },
+    { id: 'lane-1', name: 'Stream 2' }
+  ],
+  boxes: [],
+  nextColorIndex: 0
+};
+
+/* ============================================
+   UNDO HISTORY
+   ============================================ */
+let undoStack = [];
+let isUndoing = false;
+
+function pushUndo() {
+  if (isUndoing) return;
+  undoStack.push(JSON.stringify(STATE));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  updateUndoButton();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  isUndoing = true;
+  const prev = JSON.parse(undoStack.pop());
+  STATE.lanes = prev.lanes;
+  STATE.boxes = prev.boxes;
+  STATE.nextColorIndex = prev.nextColorIndex;
+  render();
+  save();
+  isUndoing = false;
+  updateUndoButton();
+  showToast('Undone');
+}
+
+function updateUndoButton() {
+  const btn = document.getElementById('btn-undo');
+  if (btn) btn.disabled = undoStack.length === 0;
+}
+
+/* ============================================
+   INTERACTION STATE
+   ============================================ */
+let interaction = null;
+// { type, boxId, startMouseX, startMouseY, origStartWeek, origDurationWeeks, origLaneIndex, hasMoved }
+
+/* ============================================
+   DATE HELPERS
+   ============================================ */
+function getWeekStartDate(weekIndex) {
+  return new Date(START_DATE.getTime() + weekIndex * WEEK_MS);
+}
+
+function formatDate(d) {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
+function formatDateShort(d) {
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+}
+
+function buildMonthHeaders() {
+  const months = [];
+  let currentKey = -1;
+  for (let w = 0; w < TOTAL_WEEKS; w++) {
+    const d = getWeekStartDate(w);
+    const key = d.getFullYear() * 12 + d.getMonth();
+    if (key !== currentKey) {
+      months.push({ month: d.getMonth(), year: d.getFullYear(), startWeek: w, span: 1 });
+      currentKey = key;
+    } else {
+      months[months.length - 1].span++;
+    }
+  }
+  return months;
+}
+
+function getTodayWeekIndex() {
+  const now = new Date();
+  const diff = now.getTime() - START_DATE.getTime();
+  if (diff < 0) return -1;
+  const week = Math.floor(diff / WEEK_MS);
+  return week < TOTAL_WEEKS ? week : -1;
+}
+
+/* ============================================
+   PERSISTENCE
+   ============================================ */
+let saveTimeout = null;
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+    flashSaveIndicator();
+  } catch (e) {
+    console.warn('Failed to save state', e);
+  }
+}
+
+function flashSaveIndicator() {
+  const el = document.getElementById('save-indicator');
+  if (!el) return;
+  el.classList.add('show');
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => el.classList.remove('show'), 1500);
+}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      if (saved.lanes) STATE.lanes = saved.lanes;
+      if (saved.boxes) STATE.boxes = saved.boxes;
+      if (typeof saved.nextColorIndex === 'number') STATE.nextColorIndex = saved.nextColorIndex;
+    }
+  } catch (e) {
+    console.warn('Failed to load state', e);
+  }
+}
+
+/* ============================================
+   RENDER: STATIC ELEMENTS (called once)
+   ============================================ */
+function renderMonthHeaders() {
+  const row = document.getElementById('month-header-row');
+  row.innerHTML = '';
+  const months = buildMonthHeaders();
+  for (const m of months) {
+    const cell = document.createElement('div');
+    cell.className = 'month-cell';
+    cell.style.width = (m.span * WEEK_WIDTH) + 'px';
+    cell.textContent = MONTH_NAMES[m.month] + ' ' + m.year;
+    row.appendChild(cell);
+  }
+}
+
+function renderWeekTicks() {
+  const row = document.getElementById('week-tick-row');
+  row.innerHTML = '';
+  for (let w = 0; w < TOTAL_WEEKS; w++) {
+    const tick = document.createElement('div');
+    tick.className = 'week-tick';
+    const d = getWeekStartDate(w);
+    // Show date label on 1st week of each month and every 4th week
+    if (d.getDate() <= 7 || w % 4 === 0) {
+      tick.textContent = formatDateShort(d);
+      tick.classList.add('has-label');
+    }
+    row.appendChild(tick);
+  }
+}
+
+function renderTodayLines() {
+  const idx = getTodayWeekIndex();
+  if (idx < 0) return;
+  const px = idx * WEEK_WIDTH + Math.floor(WEEK_WIDTH / 2);
+  for (let i = 0; i < 2; i++) {
+    const track = document.getElementById('lane-track-' + i);
+    const existing = track.querySelector('.today-line');
+    if (existing) existing.remove();
+    const line = document.createElement('div');
+    line.className = 'today-line';
+    line.style.left = px + 'px';
+    track.appendChild(line);
+  }
+}
+
+/* ============================================
+   RENDER: BOXES (called on every state change)
+   ============================================ */
+let newlyCreatedBoxId = null;
+
+function render() {
+  // Update lane names in labels and toolbar
+  for (let i = 0; i < STATE.lanes.length; i++) {
+    const nameEl = document.getElementById('lane-name-' + i);
+    if (nameEl && document.activeElement !== nameEl) {
+      nameEl.textContent = STATE.lanes[i].name;
+    }
+    const toolbarEl = document.getElementById('toolbar-lane-' + i);
+    if (toolbarEl) toolbarEl.textContent = STATE.lanes[i].name;
+  }
+
+  // Clear existing boxes and hints
+  for (let i = 0; i < 2; i++) {
+    const track = document.getElementById('lane-track-' + i);
+    track.querySelectorAll('.task-box, .empty-hint').forEach(el => el.remove());
+  }
+
+  // Count boxes per lane for empty state
+  const boxesPerLane = [0, 0];
+  for (const box of STATE.boxes) boxesPerLane[box.laneIndex]++;
+
+  // Show empty hints
+  for (let i = 0; i < 2; i++) {
+    if (boxesPerLane[i] === 0) {
+      const track = document.getElementById('lane-track-' + i);
+      const hint = document.createElement('div');
+      hint.className = 'empty-hint';
+      hint.textContent = 'Click "+" above to add a task';
+      track.appendChild(hint);
+    }
+  }
+
+  // Render each box
+  for (const box of STATE.boxes) {
+    const track = document.getElementById('lane-track-' + box.laneIndex);
+    if (!track) continue;
+
+    const el = document.createElement('div');
+    el.className = 'task-box';
+    if (box.id === newlyCreatedBoxId) {
+      el.classList.add('box-enter');
+      newlyCreatedBoxId = null;
+    }
+    el.dataset.boxId = box.id;
+    el.style.left = (box.startWeek * WEEK_WIDTH) + 'px';
+    el.style.width = (box.durationWeeks * WEEK_WIDTH) + 'px';
+    el.style.backgroundColor = PALETTE[box.colorIndex % PALETTE.length];
+
+    // Determine text color based on background luminance
+    el.style.color = getTextColor(PALETTE[box.colorIndex % PALETTE.length]);
+
+    // Tooltip
+    const startDate = getWeekStartDate(box.startWeek);
+    const endDate = getWeekStartDate(box.startWeek + box.durationWeeks);
+    const tooltip = document.createElement('div');
+    tooltip.className = 'box-tooltip';
+    tooltip.textContent = formatDate(startDate) + ' — ' + formatDate(endDate) + ' (' + box.durationWeeks + 'w)';
+    el.appendChild(tooltip);
+
+    // Name
+    const name = document.createElement('span');
+    name.className = 'box-name';
+    name.contentEditable = 'true';
+    name.textContent = box.name;
+    name.addEventListener('mousedown', e => e.stopPropagation());
+    name.addEventListener('focus', () => pushUndo());
+    name.addEventListener('blur', () => {
+      box.name = name.textContent.trim() || 'Untitled';
+      save();
+    });
+    name.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+    });
+    el.appendChild(name);
+
+    // Tag pills
+    const ALL_TAGS = [
+      { key: 'design', label: 'Design' },
+      { key: 'ios', label: 'iOS' },
+      { key: 'android', label: 'Android' },
+      { key: 'web', label: 'Web' },
+      { key: 'backend', label: 'BE' },
+    ];
+    if (!box.tags) box.tags = [];
+    const tagsRow = document.createElement('div');
+    tagsRow.className = 'box-tags';
+    tagsRow.addEventListener('mousedown', e => e.stopPropagation());
+    for (const t of ALL_TAGS) {
+      const pill = document.createElement('span');
+      pill.className = 'box-tag ' + (box.tags.includes(t.key) ? 'on' : 'off');
+      pill.dataset.tag = t.key;
+      pill.textContent = t.label;
+      pill.addEventListener('click', e => {
+        e.stopPropagation();
+        pushUndo();
+        if (box.tags.includes(t.key)) {
+          box.tags = box.tags.filter(x => x !== t.key);
+          pill.className = 'box-tag off';
+        } else {
+          box.tags.push(t.key);
+          pill.className = 'box-tag on';
+        }
+        pill.dataset.tag = t.key;
+        save();
+      });
+      tagsRow.appendChild(pill);
+    }
+    el.appendChild(tagsRow);
+
+    // Resize handles
+    const handleL = document.createElement('div');
+    handleL.className = 'resize-handle left';
+    handleL.addEventListener('mousedown', e => { e.stopPropagation(); startInteraction(e, box.id, 'resize-left'); });
+    el.appendChild(handleL);
+
+    const handleR = document.createElement('div');
+    handleR.className = 'resize-handle right';
+    handleR.addEventListener('mousedown', e => { e.stopPropagation(); startInteraction(e, box.id, 'resize-right'); });
+    el.appendChild(handleR);
+
+    // Duration badge
+    const est = document.createElement('div');
+    est.className = 'box-estimate';
+    est.textContent = box.durationWeeks + 'w';
+    el.appendChild(est);
+
+    // Link button
+    const link = document.createElement('button');
+    link.className = 'box-link';
+    link.innerHTML = '&#8599;';
+    link.title = box.url ? 'Open link (shift+click to edit)' : 'Add link to prototype';
+    if (box.url) el.classList.add('has-url');
+    link.addEventListener('mousedown', e => e.stopPropagation());
+    link.addEventListener('click', e => {
+      e.stopPropagation();
+      if (box.url && !e.shiftKey) {
+        window.open(box.url, '_blank');
+      } else {
+        const url = prompt('Enter URL for "' + box.name + '":', box.url || 'https://');
+        if (url !== null) {
+          pushUndo();
+          box.url = url.trim() || null;
+          render();
+          save();
+        }
+      }
+    });
+    el.appendChild(link);
+
+    // Delete button
+    const del = document.createElement('button');
+    del.className = 'box-delete';
+    del.innerHTML = '&times;';
+    del.addEventListener('mousedown', e => e.stopPropagation());
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      pushUndo();
+      STATE.boxes = STATE.boxes.filter(b => b.id !== box.id);
+      render();
+      save();
+    });
+    el.appendChild(del);
+
+    // Drag start
+    el.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('box-name')) return;
+      startInteraction(e, box.id, 'drag');
+    });
+
+    track.appendChild(el);
+  }
+
+  renderTodayLines();
+  save();
+}
+
+/* ============================================
+   TEXT COLOR HELPER
+   ============================================ */
+function getTextColor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? '#2D2D2D' : '#FFFFFF';
+}
+
+/* ============================================
+   INTERACTION ENGINE
+   ============================================ */
+function startInteraction(e, boxId, type) {
+  const box = STATE.boxes.find(b => b.id === boxId);
+  if (!box) return;
+
+  pushUndo();
+
+  interaction = {
+    type,
+    boxId,
+    startMouseX: e.clientX,
+    startMouseY: e.clientY,
+    origStartWeek: box.startWeek,
+    origDurationWeeks: box.durationWeeks,
+    origLaneIndex: box.laneIndex,
+    hasMoved: false
+  };
+
+  const el = document.querySelector(`[data-box-id="${boxId}"]`);
+  if (el && type === 'drag') el.classList.add('dragging');
+
+  e.preventDefault();
+}
+
+document.addEventListener('mousemove', e => {
+  if (!interaction) return;
+
+  const dx = e.clientX - interaction.startMouseX;
+  const dy = e.clientY - interaction.startMouseY;
+
+  // Check drag threshold
+  if (!interaction.hasMoved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+  interaction.hasMoved = true;
+
+  const box = STATE.boxes.find(b => b.id === interaction.boxId);
+  if (!box) return;
+
+  const deltaWeeks = Math.round(dx / WEEK_WIDTH);
+
+  if (interaction.type === 'drag') {
+    let newStart = interaction.origStartWeek + deltaWeeks;
+    newStart = Math.max(0, Math.min(newStart, TOTAL_WEEKS - box.durationWeeks));
+    box.startWeek = newStart;
+
+    // Lane switching: check vertical distance
+    const newLane = Math.abs(dy) > LANE_SWITCH_THRESHOLD
+      ? (interaction.origLaneIndex === 0 ? 1 : 0)
+      : interaction.origLaneIndex;
+
+    if (newLane !== box.laneIndex) {
+      // Move box DOM to new lane
+      const oldTrack = document.getElementById('lane-track-' + box.laneIndex);
+      const newTrack = document.getElementById('lane-track-' + newLane);
+      const el = document.querySelector(`[data-box-id="${box.id}"]`);
+      if (el && oldTrack && newTrack) {
+        oldTrack.removeChild(el);
+        newTrack.appendChild(el);
+      }
+      box.laneIndex = newLane;
+    }
+
+    // Visual hint for drop target
+    document.querySelectorAll('.swimlane').forEach(s => s.classList.remove('drop-target'));
+    if (box.laneIndex !== interaction.origLaneIndex) {
+      document.querySelector(`.swimlane[data-lane="${box.laneIndex}"]`)?.classList.add('drop-target');
+    }
+
+  } else if (interaction.type === 'resize-right') {
+    let newDuration = interaction.origDurationWeeks + deltaWeeks;
+    newDuration = Math.max(MIN_DURATION, Math.min(newDuration, TOTAL_WEEKS - box.startWeek));
+    box.durationWeeks = newDuration;
+  } else if (interaction.type === 'resize-left') {
+    let newStart = interaction.origStartWeek + deltaWeeks;
+    let newDuration = interaction.origDurationWeeks - deltaWeeks;
+    if (newDuration < MIN_DURATION) {
+      newStart = interaction.origStartWeek + interaction.origDurationWeeks - MIN_DURATION;
+      newDuration = MIN_DURATION;
+    }
+    if (newStart < 0) {
+      newDuration += newStart;
+      newStart = 0;
+    }
+    if (newDuration < MIN_DURATION) newDuration = MIN_DURATION;
+    box.startWeek = newStart;
+    box.durationWeeks = newDuration;
+  }
+
+  resolveCollisions(box);
+  updateAllBoxPositions();
+});
+
+document.addEventListener('mouseup', () => {
+  if (!interaction) return;
+
+  // Clean up drop target highlights
+  document.querySelectorAll('.swimlane').forEach(s => s.classList.remove('drop-target'));
+
+  const el = document.querySelector(`[data-box-id="${interaction.boxId}"]`);
+  if (el) el.classList.remove('dragging');
+
+  // If nothing moved, pop the undo we pushed at start
+  if (!interaction.hasMoved) {
+    undoStack.pop();
+    updateUndoButton();
+  }
+
+  interaction = null;
+  render();
+});
+
+/* ============================================
+   FAST VISUAL UPDATE (during drag)
+   ============================================ */
+function updateAllBoxPositions() {
+  for (const box of STATE.boxes) {
+    const el = document.querySelector(`[data-box-id="${box.id}"]`);
+    if (!el) continue;
+    el.style.left = (box.startWeek * WEEK_WIDTH) + 'px';
+    el.style.width = (box.durationWeeks * WEEK_WIDTH) + 'px';
+
+    // Update tooltip
+    const tooltip = el.querySelector('.box-tooltip');
+    if (tooltip) {
+      const startDate = getWeekStartDate(box.startWeek);
+      const endDate = getWeekStartDate(box.startWeek + box.durationWeeks);
+      tooltip.textContent = formatDate(startDate) + ' — ' + formatDate(endDate) + ' (' + box.durationWeeks + 'w)';
+    }
+    // Update duration badge
+    const badge = el.querySelector('.box-estimate');
+    if (badge) badge.textContent = box.durationWeeks + 'w';
+  }
+}
+
+/* ============================================
+   COLLISION RESOLUTION
+   ============================================ */
+function resolveCollisions(movedBox) {
+  const sameLane = STATE.boxes.filter(b => b.laneIndex === movedBox.laneIndex && b.id !== movedBox.id);
+
+  // Push right
+  pushRight(movedBox, sameLane);
+  // Push left
+  pushLeft(movedBox, sameLane);
+}
+
+function pushRight(source, others) {
+  const sourceEnd = source.startWeek + source.durationWeeks;
+
+  const rightNeighbors = others
+    .filter(b => {
+      const bEnd = b.startWeek + b.durationWeeks;
+      return b.startWeek < sourceEnd && bEnd > source.startWeek && b.startWeek >= source.startWeek;
+    })
+    .sort((a, b) => a.startWeek - b.startWeek);
+
+  for (const neighbor of rightNeighbors) {
+    if (neighbor.startWeek < sourceEnd) {
+      neighbor.startWeek = sourceEnd;
+      if (neighbor.startWeek + neighbor.durationWeeks > TOTAL_WEEKS) {
+        neighbor.startWeek = TOTAL_WEEKS - neighbor.durationWeeks;
+      }
+      if (neighbor.startWeek < 0) neighbor.startWeek = 0;
+      pushRight(neighbor, others.filter(b => b.id !== neighbor.id));
+    }
+  }
+}
+
+function pushLeft(source, others) {
+  const leftNeighbors = others
+    .filter(b => {
+      const bEnd = b.startWeek + b.durationWeeks;
+      return bEnd > source.startWeek && b.startWeek < source.startWeek;
+    })
+    .sort((a, b) => b.startWeek - a.startWeek);
+
+  for (const neighbor of leftNeighbors) {
+    const neighborEnd = neighbor.startWeek + neighbor.durationWeeks;
+    if (neighborEnd > source.startWeek) {
+      neighbor.startWeek = source.startWeek - neighbor.durationWeeks;
+      if (neighbor.startWeek < 0) neighbor.startWeek = 0;
+      pushLeft(neighbor, others.filter(b => b.id !== neighbor.id));
+    }
+  }
+}
+
+/* ============================================
+   ADD BOX
+   ============================================ */
+function addBox(laneIndex) {
+  pushUndo();
+
+  const laneBoxes = STATE.boxes
+    .filter(b => b.laneIndex === laneIndex)
+    .sort((a, b) => a.startWeek - b.startWeek);
+
+  // Check if lane is full
+  const totalUsed = laneBoxes.reduce((sum, b) => sum + b.durationWeeks, 0);
+  if (totalUsed >= TOTAL_WEEKS - MIN_DURATION) {
+    undoStack.pop(); updateUndoButton();
+    showToast('Lane is full!');
+    return;
+  }
+
+  // Place after the rightmost box in the lane
+  const defaultDur = 3;
+  let startWeek = 0;
+  if (laneBoxes.length > 0) {
+    const last = laneBoxes[laneBoxes.length - 1];
+    startWeek = last.startWeek + last.durationWeeks;
+  }
+  const remaining = TOTAL_WEEKS - startWeek;
+  if (remaining < MIN_DURATION) {
+    undoStack.pop(); updateUndoButton();
+    showToast('Lane is full!');
+    return;
+  }
+
+  const duration = Math.min(defaultDur, TOTAL_WEEKS - startWeek);
+
+  const newBox = {
+    id: 'box-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    laneIndex,
+    startWeek,
+    durationWeeks: duration,
+    name: 'New Task',
+    colorIndex: STATE.nextColorIndex
+  };
+
+  STATE.nextColorIndex = (STATE.nextColorIndex + 1) % PALETTE.length;
+  STATE.boxes.push(newBox);
+  newlyCreatedBoxId = newBox.id;
+  render();
+
+  // Focus the name for immediate editing
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`[data-box-id="${newBox.id}"] .box-name`);
+    if (el) {
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  });
+}
+
+/* ============================================
+   CLEAR ALL
+   ============================================ */
+function clearAll() {
+  if (STATE.boxes.length === 0) return;
+  showConfirm('Clear all tasks from the timeline?', () => {
+    pushUndo();
+    STATE.boxes = [];
+    STATE.nextColorIndex = 0;
+    render();
+  });
+}
+
+/* ============================================
+   TOAST
+   ============================================ */
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+/* ============================================
+   CONFIRM DIALOG
+   ============================================ */
+function showConfirm(msg, onConfirm) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-box">
+      <p>${msg}</p>
+      <div class="btn-row">
+        <button class="btn-cancel">Cancel</button>
+        <button class="btn-confirm">Clear</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('.btn-cancel').addEventListener('click', () => overlay.remove());
+  overlay.querySelector('.btn-confirm').addEventListener('click', () => { overlay.remove(); onConfirm(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+/* ============================================
+   LANE NAME EDITING
+   ============================================ */
+function setupLaneNameEditing() {
+  for (let i = 0; i < 2; i++) {
+    const el = document.getElementById('lane-name-' + i);
+    el.addEventListener('focus', () => pushUndo());
+    el.addEventListener('blur', () => {
+      STATE.lanes[i].name = el.textContent.trim() || ('Stream ' + (i + 1));
+      save();
+      document.getElementById('toolbar-lane-' + i).textContent = STATE.lanes[i].name;
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+    });
+  }
+}
+
+/* ============================================
+   KEYBOARD SHORTCUTS
+   ============================================ */
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+    e.preventDefault();
+    undo();
+  }
+});
+
+/* ============================================
+   INIT
+   ============================================ */
+function init() {
+  load();
+  renderMonthHeaders();
+  renderWeekTicks();
+  render();
+  setupLaneNameEditing();
+
+  document.getElementById('btn-add-1').addEventListener('click', () => addBox(0));
+  document.getElementById('btn-add-2').addEventListener('click', () => addBox(1));
+  document.getElementById('btn-clear').addEventListener('click', clearAll);
+  document.getElementById('btn-undo').addEventListener('click', undo);
+
+  // Scroll to today
+  const todayIdx = getTodayWeekIndex();
+  if (todayIdx > 4) {
+    const viewport = document.getElementById('viewport');
+    viewport.scrollLeft = Math.max(0, (todayIdx - 4) * WEEK_WIDTH);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
